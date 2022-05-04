@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
-import { PhotoService } from '../services/photo.service';
+import { Observable } from 'rxjs';
+import { PhotoService, UserPhoto } from '../services/photo.service';
 
 @Component({
   selector: 'app-tab2',
@@ -9,8 +10,18 @@ import { PhotoService } from '../services/photo.service';
 export class Tab2Page {
 
   constructor(private photoService: PhotoService) { }
-   addPhotoToGallery(): void {
+  get photos$(): Observable<UserPhoto[]> {
+    return this.photoService.photos$
+  }
+  addPhotoToGallery(): void {
     console.log('click')
-    this.photoService.addNewToGallery()
+    this.photoService.getPhotoToGalleryOrCamera().subscribe(
+      photo => {
+        this.photoService.addPhotoToGallery(photo);
+      },
+      error => {
+        console.log('error');
+        console.log(error);
+      });
   }
 }
