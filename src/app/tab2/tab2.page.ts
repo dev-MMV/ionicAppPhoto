@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
-import { Observable } from 'rxjs';
-import { PhotoService, UserPhoto } from '../services/photo.service';
+import {Component} from '@angular/core';
+import {Observable} from 'rxjs';
+import {PhotoService, UserPhoto} from '../services/photo.service';
+import {startWith, tap} from "rxjs/operators";
 
 @Component({
   selector: 'app-tab2',
@@ -8,13 +9,20 @@ import { PhotoService, UserPhoto } from '../services/photo.service';
   styleUrls: ['tab2.page.scss']
 })
 export class Tab2Page {
+  // public photos: UserPhoto[] = [];
 
-  constructor(private photoService: PhotoService) { }
-  get photos$(): Observable<UserPhoto[]> {
-    return this.photoService.photos$
+  constructor(private photoService: PhotoService) {
+    // this.photos$.subscribe(photos => {
+    //   // this.photos = photos;
+    //   console.log(photos);
+    // });
   }
+
+  get photos$(): Observable<UserPhoto[]> {
+    return this.photoService.photos$;
+  }
+
   addPhotoToGallery(): void {
-    console.log('click')
     this.photoService.getPhotoToGalleryOrCamera().subscribe(
       photo => {
         this.photoService.addPhotoToGallery(photo);

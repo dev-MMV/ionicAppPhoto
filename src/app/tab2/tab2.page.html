@@ -20,12 +20,14 @@
       </ion-fab-button>
     </ion-fab>
   </ion-content>
-  <app-explore-container name="Tab 2 page"></app-explore-container>
+  <ng-container >
+    <app-explore-container [name]="'Tab 2 page'"></app-explore-container>
+  </ng-container>
 </ion-content>
-<ion-content>
+<ion-content *ngIf="photos$|async as photos">
   <ion-grid>
     <ion-row>
-      <ion-col size="6" *ngFor="let photo of photos$|async; index as position">
+      <ion-col size="6" *ngFor="let photo of photos; index as position">
         <ion-img [src]="photo.webviewPath"></ion-img>
       </ion-col>
     </ion-row>
