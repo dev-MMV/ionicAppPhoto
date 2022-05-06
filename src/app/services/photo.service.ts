@@ -5,6 +5,7 @@ import {map, startWith, switchMap} from "rxjs/operators";
 import {Directory, Filesystem} from "@capacitor/filesystem";
 import {Storage} from "@capacitor/storage";
 import {Platform} from "@ionic/angular";
+import {Capacitor} from "@capacitor/core";
 
 export interface UserPhoto {
   filepath: string;
@@ -30,6 +31,10 @@ export class PhotoService {
   constructor(private platform: Platform) {
   }
 
+  private get isHybrid() {
+    return this.platform.is('hybrid');
+  }
+
   addToLocalStorage(key: string, value: any): void {
     Storage.set({
       key,
@@ -42,29 +47,34 @@ export class PhotoService {
     photoList.then(photos => {
       const photos$: Observable<UserPhoto | never>[] = [];
       const storedsPhoto: UserPhoto[] = JSON.parse(photos.value);
-      if (arrayIsSet(storedsPhoto)) {
-        // Display the photo by reading into base64 format
-        storedsPhoto.forEach(photo => {
-          const readingFile = Filesystem.readFile({
-            path: photo.filepath,
-            directory: Directory.Data,
-          });
-
-          // Web platform only: Load the photo as base64 data
-          photos$.push(from(readingFile).pipe(
-            map(readFile => {
-              photo.webviewPath = `data:image/jpeg;base64,${readFile.data}`;
-              return photo;
-            })
-          ));
-        });
-      } else {
-        photos$.push(EMPTY);
-      }
-      forkJoin(photos$).subscribe((storedsPhotoUpdated: UserPhoto[]) => {
-        this.storedPhoto = storedsPhotoUpdated;
+      if (this.isHybrid) {
+        this.storedPhoto = storedsPhoto;
         this.emitPhotos.next(this.storedPhoto.slice());
-      });
+      } else {
+        if (arrayIsSet(storedsPhoto)) {
+          // Display the photo by reading into base64 format
+          storedsPhoto.forEach(photo => {
+            const readingFile = Filesystem.readFile({
+              path: photo.filepath,
+              directory: Directory.Data,
+            });
+
+            // Web platform only: Load the photo as base64 data
+            photos$.push(from(readingFile).pipe(
+              map(readFile => {
+                photo.webviewPath = `data:image/jpeg;base64,${readFile.data}`;
+                return photo;
+              })
+            ));
+          });
+        } else {
+          photos$.push(EMPTY);
+        }
+        forkJoin(photos$).subscribe((storedsPhotoUpdated: UserPhoto[]) => {
+          this.storedPhoto = storedsPhotoUpdated;
+          this.emitPhotos.next(this.storedPhoto.slice());
+        });
+      }
     });
   }
 
@@ -123,17 +133,29 @@ export class PhotoService {
 
   private readAsBase64(photo: Photo): Observable<string> {
     // Fetch the photo, read as a blob, then convert to base64 format
-    const blob = fetch(photo.webPath).then(response => response.blob());
-    return from(blob).pipe(
-      switchMap((blobFile) => this.convertBlobToBase64(blobFile)),
-      map((val) => {
-        if (typeof val == 'string') {
-          return val;
-        } else {
-          return this.convertArrayBufferToString(val);
-        }
-      })
-    );
+    let obj$;
+    if (this.isHybrid) {
+      const file = Filesystem.readFile({
+        path: photo.path
+      });
+      return from(file).pipe(
+        map((readedFile) => readedFile.data)
+      );
+    } else {
+      const blob = fetch(photo.webPath).then(response => response.blob());
+      obj$ = from(blob).pipe(
+        switchMap((blobFile) => this.convertBlobToBase64(blobFile)),
+        map((val) => {
+          if (typeof val == 'string') {
+            return val;
+          } else {
+            return this.convertArrayBufferToString(val);
+          }
+        })
+      );
+    }
+
+    return obj$;
   }
 
   public savePicture(photo: Photo): Observable<UserPhoto> {
@@ -151,10 +173,18 @@ export class PhotoService {
     return this.readAsBase64(photo).pipe(
       switchMap((base64) => from(savedFile(fileName, base64))),
       map(photoStored => {
-        const userPhoto: UserPhoto = {
-          filepath: fileName,
-          webviewPath: photo.webPath
-        };
+        let userPhoto: UserPhoto;
+        if (this.isHybrid) {
+          userPhoto = {
+            filepath: photoStored.uri,
+            webviewPath: Capacitor.convertFileSrc(photoStored.uri),
+          };
+        } else {
+          userPhoto = {
+            filepath: fileName,
+            webviewPath: photo.webPath
+          };
+        }
         return userPhoto;
       })
     );
