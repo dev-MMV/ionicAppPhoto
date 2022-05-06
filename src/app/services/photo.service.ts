@@ -1,12 +1,18 @@
 import {Injectable} from '@angular/core';
 import {Camera, CameraResultType, CameraSource, Photo} from '@capacitor/camera';
-import {from, Observable, ReplaySubject, Subject} from 'rxjs';
+import {EMPTY, forkJoin, from, Observable, ReplaySubject, Subject} from 'rxjs';
 import {map, startWith, switchMap} from "rxjs/operators";
 import {Directory, Filesystem} from "@capacitor/filesystem";
+import {Storage} from "@capacitor/storage";
+import {Platform} from "@ionic/angular";
 
 export interface UserPhoto {
   filepath: string;
   webviewPath: string;
+}
+
+export function arrayIsSet<T>(array: any | T[]): array is T[] {
+  return Array.isArray(array) && array.length > 0;
 }
 
 @Injectable({
@@ -15,12 +21,51 @@ export interface UserPhoto {
 export class PhotoService {
   private storedPhoto: UserPhoto[] = [];
   private emitPhotos: ReplaySubject<UserPhoto[]> = new ReplaySubject();
+  private PHOTO_STORAGE: string = 'photos';
 
   public get photos$(): Observable<UserPhoto[]> {
     return this.emitPhotos.asObservable();
   }
 
-  constructor() {
+  constructor(private platform: Platform) {
+  }
+
+  addToLocalStorage(key: string, value: any): void {
+    Storage.set({
+      key,
+      value: JSON.stringify(value),
+    });
+  }
+
+  loadSaved() {
+    const photoList = Storage.get({key: this.PHOTO_STORAGE});
+    photoList.then(photos => {
+      const photos$: Observable<UserPhoto | never>[] = [];
+      const storedsPhoto: UserPhoto[] = JSON.parse(photos.value);
+      if (arrayIsSet(storedsPhoto)) {
+        // Display the photo by reading into base64 format
+        storedsPhoto.forEach(photo => {
+          const readingFile = Filesystem.readFile({
+            path: photo.filepath,
+            directory: Directory.Data,
+          });
+
+          // Web platform only: Load the photo as base64 data
+          photos$.push(from(readingFile).pipe(
+            map(readFile => {
+              photo.webviewPath = `data:image/jpeg;base64,${readFile.data}`;
+              return photo;
+            })
+          ));
+        });
+      } else {
+        photos$.push(EMPTY);
+      }
+      forkJoin(photos$).subscribe((storedsPhotoUpdated: UserPhoto[]) => {
+        this.storedPhoto = storedsPhotoUpdated;
+        this.emitPhotos.next(this.storedPhoto.slice());
+      });
+    });
   }
 
   public getPhotoToGalleryOrCamera(): Observable<Photo> {
@@ -33,7 +78,7 @@ export class PhotoService {
     return from(capturedPhoto);
   }
 
-  public addPhotoToGallery(capturedPhoto: Photo | null) {
+  public addPhotoToGallery(capturedPhoto: Photo | null, userPhoto: UserPhoto) {
     if (capturedPhoto != null) {
       this.storedPhoto.unshift({
         filepath: "soon...",
@@ -42,6 +87,18 @@ export class PhotoService {
     }
     this.emitPhotos.next(this.storedPhoto.slice());
   }
+
+  public addUserPhotoToGallery(userPhoto: UserPhoto) {
+    if (userPhoto != null) {
+      this.storedPhoto.unshift({
+        filepath: userPhoto.filepath,
+        webviewPath: userPhoto.webviewPath
+      });
+    }
+    this.addToLocalStorage(this.PHOTO_STORAGE, this.storedPhoto);
+    this.emitPhotos.next(this.storedPhoto.slice());
+  }
+
 
   private convertBlobToBase64(blob: Blob): Observable<string | ArrayBuffer> {
     return new Observable((subscriber) => {
@@ -79,7 +136,7 @@ export class PhotoService {
     );
   }
 
-  private savePicture(photo: Photo): Observable<UserPhoto> {
+  public savePicture(photo: Photo): Observable<UserPhoto> {
     // Convert photo to base64 format, required by Filesystem API to save
     // Write the file to the data directory
     const savedFile = (name: string, base64: string,) => Filesystem.writeFile({
@@ -101,6 +158,7 @@ export class PhotoService {
         return userPhoto;
       })
     );
-
   }
+
+
 }

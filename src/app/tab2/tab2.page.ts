@@ -1,7 +1,7 @@
 import {Component} from '@angular/core';
 import {Observable} from 'rxjs';
 import {PhotoService, UserPhoto} from '../services/photo.service';
-import {startWith, tap} from "rxjs/operators";
+import {startWith, switchMap, tap} from "rxjs/operators";
 
 @Component({
   selector: 'app-tab2',
@@ -16,6 +16,7 @@ export class Tab2Page {
     //   // this.photos = photos;
     //   console.log(photos);
     // });
+    this.photoService.loadSaved();
   }
 
   get photos$(): Observable<UserPhoto[]> {
@@ -23,13 +24,16 @@ export class Tab2Page {
   }
 
   addPhotoToGallery(): void {
-    this.photoService.getPhotoToGalleryOrCamera().subscribe(
-      photo => {
-        this.photoService.addPhotoToGallery(photo);
-      },
-      error => {
-        console.log('error');
-        console.log(error);
-      });
+    this.photoService.getPhotoToGalleryOrCamera().pipe(
+      switchMap((capturedPhoto) => this.photoService.savePicture(capturedPhoto)),
+    )
+      .subscribe(
+        userPhoto => {
+          this.photoService.addUserPhotoToGallery(userPhoto);
+        },
+        error => {
+          console.log('error');
+          console.log(error);
+        });
   }
 }
