@@ -6,6 +6,7 @@ import {Directory, Filesystem} from "@capacitor/filesystem";
 import {Storage} from "@capacitor/storage";
 import {Platform} from "@ionic/angular";
 import {Capacitor} from "@capacitor/core";
+import {fromPromise} from "rxjs/internal-compatibility";
 
 export interface UserPhoto {
   filepath: string;
@@ -190,5 +191,22 @@ export class PhotoService {
     );
   }
 
+  deletePicture(photo: UserPhoto, position: number) {
+    this.storedPhoto.splice(position, 1);
+    Storage.set({
+      key: this.PHOTO_STORAGE,
+      value: JSON.stringify(this.storedPhoto)
+    });
+
+    return fromPromise(Filesystem.deleteFile({
+      path: photo.filepath,
+      directory: Directory.Data
+    })).pipe(
+      map(() => {
+        this.emitPhotos.next(this.storedPhoto.slice())
+        return photo
+      })
+    )
+  }
 
 }

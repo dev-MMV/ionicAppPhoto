@@ -24,10 +24,10 @@
   <ion-grid>
     <ion-row>
       <ion-col size="6" *ngFor="let photo of photos; index as position">
-        <ion-img [src]="photo.webviewPath"></ion-img>
+        <ion-img [src]="photo.webviewPath" (click)="showActionSheet(photo, position)"></ion-img>
       </ion-col>
     </ion-row>
   </ion-grid>
 </ion-content>
-<app-explore-container [name]="'Tab 2 page'"></app-explore-container>
+<app-explore-container [name]="'Tab 2 page 2'"></app-explore-container>
 
